@@ -56,10 +56,12 @@ export const LicenseModule: Module<State, RootState>  = {
     },
     isUltimate(state) {
       if (!state) return false
+      if (window.platformInfo.devFeaturesEnabled) return true
       return state.status.isUltimate
     },
     isCommunity(state) {
       if (!state) return true
+      if (window.platformInfo.devFeaturesEnabled) return false
       return state.status.isCommunity
     },
     isTrial(state) {

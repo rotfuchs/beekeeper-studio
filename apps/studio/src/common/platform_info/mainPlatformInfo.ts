@@ -91,6 +91,7 @@ export function mainPlatformInfo(): IPlatformInfo {
       production: !isDevEnv && !testMode
     },
     debugEnabled: !!p.env.DEBUG,
+    devFeaturesEnabled: isDevEnv || !!p.env.BKS_DEV_FEATURES,
     DEBUG: p.env.DEBUG,
     platform: easyPlatform,
     darkMode: testMode ? true : !!(e.nativeTheme.shouldUseDarkColors) || windowPrefersDarkMode,

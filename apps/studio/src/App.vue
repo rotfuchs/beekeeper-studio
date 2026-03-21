@@ -114,6 +114,7 @@ export default Vue.extend({
   computed: {
     activeLicense() {
       return this.$config.isDevelopment ||
+        this.$config.devFeaturesEnabled ||
         (this.license && this.license.active)
     },
     ...mapState(['storeInitialized', 'connected', 'database']),

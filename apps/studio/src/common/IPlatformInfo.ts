@@ -23,6 +23,7 @@ export interface IPlatformInfo {
     production: boolean
   },
   debugEnabled: boolean,
+  devFeaturesEnabled: boolean,
   DEBUG: string,
   platform: Platform,
   darkMode: boolean,

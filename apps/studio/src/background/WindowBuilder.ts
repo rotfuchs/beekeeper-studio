@@ -150,7 +150,9 @@ class BeekeeperWindow {
       globalShortcut.register('F12', this.win.webContents.toggleDevTools.bind(this.win.webContents))
       globalShortcut.register('CommandOrControl+Shift+I', this.win.webContents.toggleDevTools.bind(this.win.webContents))
 
-      this.win.webContents.openDevTools()
+      if (!process.env.BKS_NO_DEVTOOLS) {
+        this.win.webContents.openDevTools()
+      }
     }
   }
 

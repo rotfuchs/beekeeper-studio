@@ -138,7 +138,7 @@ export default class extends DefaultMenu {
       this.helpMenu()
     ]
 
-    if (this.platformInfo.isDevelopment) {
+    if (this.platformInfo.devFeaturesEnabled) {
       menu.push(this.devMenu())
     }
 
