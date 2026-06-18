@@ -8,7 +8,7 @@ export interface IDevHandlers {
 
 export const DevHandlers: IDevHandlers = {
   "dev/switchLicenseState": async function ({ state }: { state: DevLicenseState; sId: string; }) {
-    if (!platformInfo.isDevelopment) {
+    if (!platformInfo.devFeaturesEnabled) {
       throw new Error("Not allowed");
     }
 
