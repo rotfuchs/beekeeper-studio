@@ -1,5 +1,4 @@
 import { Extension } from "@codemirror/state";
-import { FeatureOptions } from "@marimo-team/codemirror-languageserver/dist/lsp";
 import { WebSocketTransport } from "@open-rpc/client-js";
 import { VimOptions } from "./extensions/keymap";
 import { LanguageServerClient } from "./LanguageServerClient";
@@ -51,6 +50,30 @@ export interface LanguageServerConfiguration {
 export interface ExtendedFeatureOptions extends FeatureOptions {
   /** Whether to enable semantic tokens (default: true) */
   semanticTokensEnabled?: boolean;
+}
+
+interface FeatureOptions {
+  /** Whether to enable diagnostic messages (default: true) */
+  diagnosticsEnabled?: boolean;
+  /** Whether to enable hover tooltips (default: true) */
+  hoverEnabled?: boolean;
+  /** Whether to enable code completion (default: true) */
+  completionEnabled?: boolean;
+  /** Whether to enable go-to-definition (default: true) */
+  definitionEnabled?: boolean;
+  /** Whether to enable rename functionality (default: true) */
+  renameEnabled?: boolean;
+  /** Whether to enable code actions (default: true) */
+  codeActionsEnabled?: boolean;
+  /** Whether to enable signature help (default: true) */
+  signatureHelpEnabled?: boolean;
+  /** Whether to show signature help while typing (default: false) */
+  signatureActivateOnTyping?: boolean;
+  /** Additional options for signature help */
+  signatureHelpOptions?: {
+    /** Position of the signature help tooltip (default: "below") */
+    position?: "above" | "below";
+  };
 }
 
 export type Keymap = "default" | "vim" | "emacs";
@@ -149,4 +172,3 @@ export type TextEditorMenuContext = {
   text: string;
   selectedText: string;
 }
-
