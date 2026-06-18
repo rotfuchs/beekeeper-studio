@@ -26,6 +26,9 @@ module.exports = {
     releaseNotesFile: "build/release-notes.md"
   },
   generateUpdatesFilesForAllChannels: true,
+  toolsets: {
+    appimage: "1.0.3"
+  },
   directories: {
     output: "dist_electron"
   },
@@ -71,7 +74,7 @@ module.exports = {
     {
       from: ".",
       to: ".",
-      filter: ["user.config.ini", "system.config.ini", "default.config.ini"],
+      filter: ["user.config.ini", "system.config.ini", "default.config.ini", "deprecated.config.ini"],
     },
     {
       from: "node_modules/ws",

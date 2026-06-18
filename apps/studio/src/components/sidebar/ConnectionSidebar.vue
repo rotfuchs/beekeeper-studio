@@ -53,9 +53,6 @@
               </div>
               <span class="expand" />
               <div class="actions">
-                <a @click="togglePrivacyMode" :title="privacyMode ? 'Disable Privacy Mode' : 'Enable Privacy Mode'">
-                  <i class="material-icons">{{ privacyMode ? 'visibility_off' : 'visibility' }}</i>
-                </a>
                 <a @click.prevent="refresh"><i class="material-icons">refresh</i></a>
               </div>
             </div>
@@ -116,9 +113,6 @@
                   >
                     <i class="material-icons-outlined">create_new_folder</i>
                   </a>
-                  <a @click="togglePrivacyMode" :title="privacyMode ? 'Disable Privacy Mode' : 'Enable Privacy Mode'">
-                    <i class="material-icons">{{ privacyMode ? 'visibility_off' : 'visibility' }}</i>
-                  </a>
                   <a @click.prevent="refresh"><i class="material-icons">refresh</i></a>
                   <sidebar-sort-buttons
                     v-model="sort"
@@ -172,25 +166,29 @@
               class="list-body"
             >
               <sidebar-folder
-                v-for="{ folder, connections, subfolders } in foldersWithConnections"
-                :key="`${folder.id}-${connections.length}`"
-                :title="`${folder.name} (${connections.length})`"
-                placeholder="No Items"
+                v-for="{ folder, items, subfolders } in foldersWithConnections"
+                :key="`${folder.id}-${items.length}`"
+                :name="folder.name"
+                :children-count="items.length"
+                :rename="renamingFolderId === folder.id"
+                :empty="items.length === 0 && subfolders.length === 0"
                 :expanded-initially="getFolderExpanded(folder.id)"
                 @toggle="onFolderToggle(folder.id, $event)"
-                @contextmenu.native.stop.prevent="showFolderContextMenu($event, folder)"
+                @contextmenu.native.prevent="showFolderContextMenu($event, folder)"
                 @header-drop="onConnectionFolderHeaderDrop(folder)"
+                @rename-submit="submitFolderRename(folder, $event)"
+                @rename-cancel="renamingFolderId = null"
               >
                 <Draggable
-                  :list="connections"
+                  :list="items"
                   group="connections"
                   ghost-class="drag-ghost"
-                  @start="onConnectionDragStart($event, connections)"
+                  @start="onConnectionDragStart($event, items)"
                   @end="draggingConnection = null"
-                  @change="onConnectionDrop($event, folder, connections)"
+                  @change="onConnectionDrop($event, folder, items)"
                 >
                   <connection-list-item
-                    v-for="c in connections"
+                    v-for="c in items"
                     :key="c.id"
                     :config="c"
                     :selected-config="selectedConfig"
@@ -205,14 +203,18 @@
                   />
                 </Draggable>
                 <sidebar-folder
-                  v-for="{ folder: subfolder, connections: subConnections } in subfolders"
+                  v-for="{ folder: subfolder, items: subConnections } in subfolders"
                   :key="`${subfolder.id}-${subConnections.length}`"
-                  :title="`${subfolder.name} (${subConnections.length})`"
-                  placeholder="No Items"
+                  :name="subfolder.name"
+                  :children-count="subConnections.length"
+                  :rename="renamingFolderId === subfolder.id"
+                  :empty="subConnections.length === 0"
                   :expanded-initially="getFolderExpanded(subfolder.id)"
                   @toggle="onFolderToggle(subfolder.id, $event)"
-                  @contextmenu.native.stop.prevent="showFolderContextMenu($event, subfolder)"
+                  @contextmenu.native.prevent="showFolderContextMenu($event, subfolder)"
                   @header-drop="onConnectionFolderHeaderDrop(subfolder)"
+                  @rename-submit="submitFolderRename(subfolder, $event)"
+                  @rename-cancel="renamingFolderId = null"
                 >
                   <Draggable
                     :list="subConnections"
@@ -303,14 +305,16 @@
       <modal
         class="vue-dialog beekeeper-modal"
         name="connection-folder-modal"
-        @closed="folderModalName = ''; folderModalItem = null"
+        @closed="folderModalName = ''; folderModalItem = null; folderModalError = null"
         @opened="$nextTick(() => $refs.folderNameInput && $refs.folderNameInput.focus())"
         height="auto"
         :scrollable="true"
       >
         <form @submit.prevent="submitFolderModal">
           <div class="dialog-content" v-kbd-trap="true">
-            <div class="dialog-c-title">{{ folderModalItem ? 'Rename Folder' : folderModalParentId ? 'New Subfolder' : 'New Folder' }}</div>
+            <div class="dialog-c-title">
+              {{ folderModalItem ? 'Rename Folder' : folderModalParentId ? 'New Subfolder' : 'New Folder' }}
+            </div>
             <div class="form-group">
               <label>Folder Name</label>
               <input
@@ -318,21 +322,25 @@
                 v-model="folderModalName"
                 type="text"
                 placeholder="Folder name"
+                @input="folderModalError = null"
                 @keydown.esc.prevent="$modal.hide('connection-folder-modal')"
               >
             </div>
             <div class="form-group" v-if="isCloud && !folderModalItem && rootFolders.length > 0">
               <label>Parent Folder</label>
-              <select v-model="folderModalParentId">
-                <option v-for="f in rootFolders" :key="f.id" :value="f.id">{{ f.name }}</option>
+              <select v-model="folderModalParentId" @change="folderModalError = null">
+                <option v-for="f in rootFolders" :key="f.id" :value="f.id">
+                  {{ f.name }}
+                </option>
               </select>
             </div>
+            <error-alert v-if="folderModalError" :error="folderModalError" />
           </div>
           <div class="vue-dialog-buttons flex-between">
             <span class="left" />
             <span class="right">
               <button class="btn btn-flat" type="button" @click.prevent="$modal.hide('connection-folder-modal')">Cancel</button>
-              <button class="btn btn-primary" type="submit" :disabled="!folderModalName.trim()">
+              <button class="btn btn-primary" type="submit" :disabled="!folderModalName.trim() || folderModalSubmitting">
                 {{ folderModalItem ? 'Rename' : 'Create' }}
               </button>
             </span>
@@ -354,6 +362,7 @@ import ErrorAlert from '@/components/common/ErrorAlert.vue'
 import Split from 'split.js'
 import SidebarFolder from '@/components/common/SidebarFolder.vue'
 import { AppEvent } from '@/common/AppEvent'
+import { getLonelyItems, isFolderListEmpty } from '@/common/utils/folderTree'
 import rawLog from '@bksLogger'
 import SidebarSortButtons from '../common/SidebarSortButtons.vue'
 import Draggable from 'vuedraggable'
@@ -386,8 +395,11 @@ export default {
     folderModalName: '',
     folderModalItem: null,
     folderModalParentId: null,
+    folderModalError: null,
+    folderModalSubmitting: false,
     folderExpandedState: {},
-    draggingConnection: null
+    draggingConnection: null,
+    renamingFolderId: null,
   }),
   watch: {
     async sort(newSort) {
@@ -409,7 +421,6 @@ export default {
       foldersLoading: 'loading',
       foldersError: 'error',
     }),
-    ...mapState('settings', ['privacyMode']),
     ...mapGetters({
       usedConfigs: 'data/usedconnections/orderedUsedConfigs',
       settings: 'settings/settings',
@@ -417,7 +428,8 @@ export default {
       isUltimate: 'isUltimate',
       activeWorkspaces: 'credentials/activeWorkspaces',
       pinnedConnections: 'pinnedConnections/pinnedConnections',
-      filteredConnections: 'data/connections/filteredConnections'
+      filteredConnections: 'data/connections/filteredConnections',
+      privacyMode: 'settings/privacyMode'
     }),
     connFilter: {
       get() {
@@ -428,7 +440,7 @@ export default {
       }
     },
     empty() {
-      return !this.filteredConnections?.length
+      return isFolderListEmpty(this.filteredConnections, this.folders)
     },
     noPins() {
       return !this.pinnedConnections?.length;
@@ -437,10 +449,7 @@ export default {
       return this.folders.filter((f) => !f.parentId).sort((a, b) => a.name.localeCompare(b.name))
     },
     lonelyConnections() {
-      const folderIds = this.folders.map((c) => c.id)
-      return [...this.filteredConnections]
-        .filter((config) => !config.connectionFolderId || !folderIds.includes(config.connectionFolderId))
-        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      return getLonelyItems(this.folders, this.filteredConnections, 'connectionFolderId')
     },
     foldersWithConnections() {
       if (this.loading) return []
@@ -495,9 +504,6 @@ export default {
     this.$nextTick(() => { this.sortInitialized = true })
   },
   methods: {
-    ...mapActions({
-      togglePrivacyMode: 'settings/togglePrivacyMode',
-    }),
     getFolderExpanded(folderId) {
       const stored = this.folderExpandedState[folderId]
       return stored !== undefined ? stored : true
@@ -551,17 +557,23 @@ export default {
     },
     createFolder() {
       if (!this.isUltimate && !this.isCloud) {
-        this.$root.$emit(AppEvent.upgradeModal, 'Upgrade to organize your connections into folders')
+        this.$root.$emit(AppEvent.upgradeModal, 'Folders')
         return
       }
       this.folderModalName = ''
       this.folderModalItem = null
+      this.folderModalError = null
       this.folderModalParentId = (this.isCloud && this.rootFolders.length > 0)
         ? this.rootFolders[0].id
         : null
       this.$modal.show('connection-folder-modal')
     },
     showFolderContextMenu(event, folder) {
+      if (event.target.tagName === 'INPUT') {
+        return;
+      }
+      event.stopPropagation();
+
       const options = []
       if (this.isCloud && !folder.parentId) {
         options.push({ name: 'New Subfolder', handler: ({ item }) => this.createSubfolder(item) })
@@ -580,11 +592,12 @@ export default {
     },
     createSubfolder(parentFolder) {
       if (!this.isUltimate && !this.isCloud) {
-        this.$root.$emit(AppEvent.upgradeModal, 'Upgrade to organize your connections into folders')
+        this.$root.$emit(AppEvent.upgradeModal, 'Folders')
         return
       }
       this.folderModalName = ''
       this.folderModalItem = null
+      this.folderModalError = null
       this.folderModalParentId = parentFolder.id
       this.$modal.show('connection-folder-modal')
     },
@@ -596,9 +609,20 @@ export default {
       })
     },
     renameFolder(folder) {
-      this.folderModalName = folder.name
-      this.folderModalItem = folder
-      this.$modal.show('connection-folder-modal')
+      this.renamingFolderId = folder.id
+    },
+    async submitFolderRename(folder, name) {
+      if (!name || name === folder.name) {
+        this.renamingFolderId = null
+        return
+      }
+      try {
+        await this.$store.dispatch('data/connectionFolders/save', { ...folder, name })
+      } catch (ex) {
+        this.$noty.error(`Rename error: ${ex.userMessage ?? ex.message}`)
+      } finally {
+        this.renamingFolderId = null
+      }
     },
     async moveFolderToParent(folder, newParent) {
       await this.$store.dispatch('data/connectionFolders/save', { ...folder, parentId: newParent.id })
@@ -712,12 +736,20 @@ export default {
     async submitFolderModal() {
       const name = this.folderModalName.trim()
       if (!name) return
-      if (this.folderModalItem) {
-        await this.$store.dispatch('data/connectionFolders/save', { ...this.folderModalItem, name })
-      } else {
-        await this.$store.dispatch('data/connectionFolders/save', { id: null, name, parentId: this.folderModalParentId ?? null })
+      this.folderModalError = null
+      this.folderModalSubmitting = true
+      try {
+        if (this.folderModalItem) {
+          await this.$store.dispatch('data/connectionFolders/save', { ...this.folderModalItem, name })
+        } else {
+          await this.$store.dispatch('data/connectionFolders/save', { id: null, name, parentId: this.folderModalParentId ?? null })
+        }
+        this.$modal.hide('connection-folder-modal')
+      } catch (e) {
+        this.folderModalError = e.userMessage ?? e.message ?? 'Failed to save folder'
+      } finally {
+        this.folderModalSubmitting = false
       }
-      this.$modal.hide('connection-folder-modal')
     },
   }
 }
